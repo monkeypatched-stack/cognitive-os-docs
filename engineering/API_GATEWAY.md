@@ -109,4 +109,4 @@ Docker network.
 | `docker-compose.yml` | Kong service on `:8000` |
 | `deploy/k8s/kong.yaml` | Kong Deployment + LoadBalancer Service |
 | `src/monkey_brain/api/gateway_boundary.py` | AgentOS Kong header enforcement |
-| `src/monkey_brain/api/internal_auth.py` | Actor runtime internal token |
+| `src/monkey_brain/actor_contract/internal_auth.py` | Actor runtime internal token |
