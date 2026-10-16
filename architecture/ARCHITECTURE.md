@@ -67,7 +67,7 @@ flowchart LR
 | `cognitive-os-robotics`, `-drone`, `-navigation` | Robot kinds (ROS, PX4, Nav2) | No |
 | `cognitive-os-docs` | Papers, pitch, an older architecture PDF | No |
 
-None of the code repos has a commit yet: everything below describes the working trees as of today.
+Everything below describes the working trees as of 2026-10-16.
 
 ## Control plane
 
@@ -512,7 +512,7 @@ The live actor runs image `a0b94f39d74f` (built 2026-10-16 04:12 IST), which inc
 | --- | --- |
 | Sweep recovers a stalled job on a waiting cycle (`mastery_cycle.py`, new regression test) | Tested (LMS suite 485 passed, 3 skipped), not deployed |
 | carol, `python-loops`, cycle 2 `mc-61e507ab7406e41736ff` | `awaiting_review`: 2 mastery-check artifacts pending staff review |
-| Commits | None yet in any code repo |
+| Commits | Learning-stack changes on `feat/learning-actor` branches with open PRs; `cognitive-os-lms` committed locally, no remote yet |
 | Model benchmark (`tests/eval/model_benchmark.py`) | Never run; needs an explicit go-ahead |
 
 - **Semantic accuracy:** the false-claims catalogue covers 17 claims; other wrong statements still need human review or a stronger model.
