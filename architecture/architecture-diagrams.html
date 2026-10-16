@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CognitiveOS Architecture Diagrams</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; an index of diagrams grouped by kind; one framed diagram per section */
+:root { --bg:#f6f7f9; --panel:#ffffff; --fg:#1b2330; --muted:#5a6578; --line:#d9dee6; --accent:#2f6fb2;
+  --sans:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif; --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#11151b; --panel:#181d25; --fg:#e4e8ef; --muted:#9aa5b6; --line:#2a313c; --accent:#7fb0e6; color-scheme:dark; } }
+:root[data-theme="dark"] { --bg:#11151b; --panel:#181d25; --fg:#e4e8ef; --muted:#9aa5b6; --line:#2a313c; --accent:#7fb0e6; color-scheme:dark; }
+body { background:var(--bg); color:var(--fg); font-family:var(--sans); font-size:15px; line-height:1.55;
+  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width:1040px; margin:0 auto; padding-block:40px 64px; display:flex; flex-direction:column; gap:32px; }
+header h1 { font-size:28px; margin:0 0 6px; text-wrap:balance; letter-spacing:-0.01em; }
+header p { margin:0; color:var(--muted); max-width:65ch; }
+code { font-family:var(--mono); font-size:0.9em; }
+nav { display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding-block:12px; }
+.navgroup { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.navlabel { font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); min-width:84px; }
+nav a { font-size:13px; color:var(--fg); text-decoration:none; border:1px solid var(--line); border-radius:999px; padding:3px 11px; background:var(--panel); }
+nav a:hover, nav a:focus-visible { border-color:var(--accent); color:var(--accent); outline:none; }
+h2.group { font-size:13px; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted); margin:8px 0 -12px; font-weight:600; }
+section { display:flex; flex-direction:column; gap:8px; scroll-margin-top:16px; }
+.head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+.n { font-family:var(--mono); font-size:13px; color:var(--accent); letter-spacing:0.04em; }
+section h2 { font-size:19px; margin:0; text-wrap:balance; }
+.kind { font-family:var(--mono); font-size:11.5px; color:var(--muted); border:1px solid var(--line); border-radius:4px; padding:0 6px; }
+section > p { margin:0; color:var(--muted); max-width:70ch; }
+.frame { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:20px; overflow-x:auto; min-width:0; }
+pre.mermaid { margin:0; display:flex; justify-content:center; font-family:var(--mono); font-size:12px; }
+footer { color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap"><header><h1>CognitiveOS Architecture Diagrams</h1><p>The 14 Mermaid diagrams from <code>cognitive-os-docs/architecture/ARCHITECTURE.md</code>, as of 2026-10-16: the live adaptive-learning stack on one Mac.</p></header><nav aria-label="Diagrams"><div class="navgroup"><span class="navlabel">Structure</span><a href="#d1">System map</a><a href="#d2">Control plane request path</a><a href="#d3">LMS reads and writes</a><a href="#d4">Mastery cycle states</a><a href="#d5">Content generation and gates</a><a href="#d6">Learner UI flow</a><a href="#d7">Security layers</a><a href="#d8">Build and deployment</a></div><div class="navgroup"><span class="navlabel">Sequences</span><a href="#d9">From an LMS attempt to remediation</a><a href="#d10">Staff review and approval</a><a href="#d11">Publishing a mastery check</a><a href="#d12">Evaluating a mastery-check attempt</a><a href="#d13">Recovery after a restart</a><a href="#d14">LMS key rotation</a></div></nav><h2 class="group">Structure</h2><section id="d1"><div class="head"><span class="n">01</span><h2>System map</h2><span class="kind">flowchart</span></div><p>Every learner call goes UI → Kong → agentos → the actor pod; the actor alone talks to the LMS and Ollama.</p><div class="frame"><pre class="mermaid">flowchart LR
+  subgraph Browser
+    L[Learner / staff]
+  end
+  subgraph UI[&quot;cognitive-os-ui :3000&quot;]
+    W[&quot;/learn page\nNext.js workspace&quot;]
+  end
+  subgraph CP[&quot;Control plane&quot;]
+    K[&quot;Kong :8000&quot;]
+    A[&quot;agentos Control API :8031&quot;]
+    AU[&quot;auth :8010&quot;]
+    O[&quot;OPA :8182&quot;]
+  end
+  subgraph Infra[&quot;Shared infrastructure&quot;]
+    M[(&quot;MongoDB :27018&quot;)]
+    R[(&quot;Redis :6380&quot;)]
+    N[(&quot;Neo4j :7688&quot;)]
+    S[(&quot;NATS :14222&quot;)]
+  end
+  subgraph Actor[&quot;Learning actor pod :8061&quot;]
+    LA[&quot;Actor Runtime +\ncognitive-os-lms plugin&quot;]
+    SQ[(&quot;SQLite learner state\nvolume learning-state&quot;)]
+  end
+  subgraph LMS[&quot;Frappe LMS :8090&quot;]
+    F[&quot;Frappe + LMS + api_auth&quot;]
+    MD[(&quot;MariaDB&quot;)]
+  end
+  OL[&quot;Host Ollama :11434\nqwen2.5:14b / 7b&quot;]
+
+  L --&gt; W
+  L -- &quot;official quizzes, mastery checks&quot; --&gt; F
+  W -- &quot;/api/* (Next rewrite)&quot; --&gt; K
+  K --&gt; A
+  A -- &quot;verify token, RBAC&quot; --&gt; AU
+  A -- &quot;policy&quot; --&gt; O
+  A -- &quot;forward (internal token)&quot; --&gt; LA
+  A --&gt; M
+  LA --&gt; M &amp; R &amp; N &amp; S
+  LA --&gt; SQ
+  LA -- &quot;REST, service-user API key&quot; --&gt; F
+  LA -- &quot;generation, claim judge&quot; --&gt; OL
+  F --&gt; MD
+</pre></div></section><section id="d2"><div class="head"><span class="n">02</span><h2>Control plane request path</h2><span class="kind">sequence</span></div><p>The token&#x27;s email becomes requested_by; the actor still limits a learner to their own records.</p><div class="frame"><pre class="mermaid">sequenceDiagram
+  participant B as Browser (/learn)
+  participant K as Kong :8000
+  participant A as agentos :8031
+  participant U as auth
+  participant T as Learning actor :8051
+  B-&gt;&gt;K: GET /api/v1/agentos/actors/tutor/learning/... (JWT)
+  K-&gt;&gt;A: forward
+  A-&gt;&gt;U: verify token, load role permissions
+  alt missing perm-view-learning / perm-execute-learning
+    A--&gt;&gt;B: 403
+  else no runtime hosts actor &quot;tutor&quot;
+    A--&gt;&gt;B: 409 actor_not_running
+  else allowed
+    A-&gt;&gt;T: same path + requested_by=&lt;token email&gt;, internal service token
+    T-&gt;&gt;T: requester may only see own records unless LEARNING_STAFF_USERS
+    T--&gt;&gt;A: result
+    A--&gt;&gt;B: result
+  end
+</pre></div></section><section id="d3"><div class="head"><span class="n">03</span><h2>LMS reads and writes</h2><span class="kind">flowchart</span></div><p>The LMS stays the record: the actor only assigns quizzes and publishes approved mastery checks.</p><div class="frame"><pre class="mermaid">flowchart LR
+  subgraph LMS[&quot;Frappe LMS (system of record)&quot;]
+    C[&quot;Courses, chapters, lessons&quot;]
+    Q[&quot;LMS Quiz + questions&quot;]
+    P[&quot;LMS Course Progress&quot;]
+    S[&quot;LMS Quiz Submission\n(official grades)&quot;]
+    AA[&quot;Assessment Assignment&quot;]
+  end
+  subgraph Actor[&quot;Learning actor&quot;]
+    R[&quot;Reads&quot;]
+    W[&quot;Writes&quot;]
+  end
+  Learner -- &quot;studies lessons, takes quizzes&quot; --&gt; P &amp; S
+  R --&gt; C &amp; Q &amp; P &amp; S
+  W -- &quot;assign quiz&quot; --&gt; AA
+  W -- &quot;publish approved mastery check,\nthen read it back&quot; --&gt; Q
+</pre></div></section><section id="d4"><div class="head"><span class="n">04</span><h2>Mastery cycle states</h2><span class="kind">state</span></div><p>One durable cycle per learner, course and required assessment, until mastery or a staff hand-off.</p><div class="frame"><pre class="mermaid">stateDiagram-v2
+  [*] --&gt; awaiting_assessment: start (sweep sees an LMS attempt, or a request)
+  awaiting_assessment --&gt; remediating: failed attempt -&gt; diagnose gaps
+  remediating --&gt; awaiting_review: lesson + practice generated, held for staff
+  awaiting_review --&gt; awaiting_student_completion: staff approve, module delivered
+  awaiting_student_completion --&gt; awaiting_review: learner done -&gt; mastery check generated, held for staff
+  awaiting_review --&gt; awaiting_reassessment: check approved, published + assigned in LMS (read back)
+  awaiting_reassessment --&gt; completed: new LMS attempt meets the completion policy
+  awaiting_reassessment --&gt; remediating: not mastered, budget left -&gt; next iteration
+  remediating --&gt; escalated: limit, unmappable questions, bad source, policy denial
+  awaiting_review --&gt; escalated: rejected or unbuildable check
+  escalated --&gt; resumed: staff resume (budget reset, failed artifacts retried)
+  resumed --&gt; remediating
+  escalated --&gt; closed: staff close
+  remediating --&gt; failed: missing provider or permission
+  failed --&gt; resumed: staff resume after fix
+  completed --&gt; [*]
+  closed --&gt; [*]
+</pre></div></section><section id="d5"><div class="head"><span class="n">05</span><h2>Content generation and gates</h2><span class="kind">flowchart</span></div><p>Nothing generated reaches a learner without passing the gate and a staff approval bound to its content hash.</p><div class="frame"><pre class="mermaid">flowchart TD
+  G[&quot;Gap + source lesson + misconceptions&quot;] --&gt; RS[&quot;research: lesson text, allowed external sources&quot;]
+  RS --&gt; GEN[&quot;generate (Ollama qwen2.5:14b)\nremediation lesson / practice quiz / mastery check&quot;]
+  GEN --&gt; GATE{&quot;quality gate\nremix_quality.py&quot;}
+  GATE -- &quot;hard fail&quot; --&gt; REP[&quot;repair loop\nremix_repair.py&quot;]
+  REP --&gt; GATE
+  GATE -- &quot;quiz still fails&quot; --&gt; CB[&quot;check_builder.py\nquestions from the lesson&#x27;s own code&quot;]
+  CB --&gt; GATE
+  GATE -- &quot;soft flags&quot; --&gt; JUDGE[&quot;claim judge (qwen2.5:14b)\nconfirms contradictions&quot;]
+  JUDGE --&gt; GATE
+  GATE -- &quot;pass&quot; --&gt; NR[&quot;needs_review&quot;]
+  NR -- &quot;staff approve (bound to content hash)&quot; --&gt; READY[&quot;ready&quot;]
+  NR -- &quot;reject&quot; --&gt; GEN
+  READY --&gt; DEL[&quot;deliver in /learn&quot;]
+  READY --&gt; PUB[&quot;publish check to LMS\nrender, re-run keys, read back&quot;]
+</pre></div></section><section id="d6"><div class="head"><span class="n">06</span><h2>Learner UI flow</h2><span class="kind">sequence</span></div><p>Study and practice happen in /learn; official quizzes and mastery checks are taken in the LMS.</p><div class="frame"><pre class="mermaid">sequenceDiagram
+  actor L as Learner
+  participant UI as /learn (Next.js :3000)
+  participant CP as Kong + agentos
+  participant T as Learning actor
+  participant F as Frappe LMS :8090
+  L-&gt;&gt;UI: sign in (control-plane account, MFA)
+  UI-&gt;&gt;CP: GET .../learners/{me}/courses
+  CP-&gt;&gt;T: forward with requested_by
+  UI-&gt;&gt;CP: GET .../mastery/{cycle} (polled)
+  CP--&gt;&gt;UI: status + learner_stage
+  UI-&gt;&gt;CP: GET .../mastery/{cycle}/module
+  L-&gt;&gt;UI: answer practice questions
+  UI-&gt;&gt;CP: POST .../remix/{artifact}/responses (formative, never an LMS grade)
+  L-&gt;&gt;UI: I&#x27;ve finished studying
+  UI-&gt;&gt;CP: POST .../mastery/{cycle}/remediation-complete (wait=false)
+  Note over T: mastery check generated, reviewed, published
+  L-&gt;&gt;F: take the mastery check (lmsQuizUrl)
+  F--&gt;&gt;T: submission read by the sweep
+</pre></div></section><section id="d7"><div class="head"><span class="n">07</span><h2>Security layers</h2><span class="kind">flowchart</span></div><p>Three independent checks: control-plane permission, actor requester scope, LMS role.</p><div class="frame"><pre class="mermaid">flowchart LR
+  subgraph Z1[&quot;Control plane&quot;]
+    J[&quot;JWT verified\n(auth, MFA)&quot;] --&gt; PERM{&quot;permission&quot;}
+  end
+  subgraph Z2[&quot;Learning actor&quot;]
+    TOK[&quot;internal service token&quot;] --&gt; REQ{&quot;requested_by:\nown records, or\nLEARNING_STAFF_USERS&quot;}
+    REQ --&gt; SCOPE{&quot;LEARNING_LEARNERS /\nLEARNING_COURSES scope&quot;}
+  end
+  subgraph Z3[&quot;Frappe LMS&quot;]
+    KEY[&quot;service-user API key&quot;] --&gt; ROLE{&quot;LMS role permissions&quot;}
+  end
+  PERM -- &quot;learner: perm-view/execute-learning\nstaff: perm-view-actors / perm-execute-action&quot; --&gt; TOK
+  SCOPE --&gt; KEY
+</pre></div></section><section id="d8"><div class="head"><span class="n">08</span><h2>Build and deployment</h2><span class="kind">flowchart</span></div><p>The learning actor image layers the lms plugin on the shared actor base image.</p><div class="frame"><pre class="mermaid">flowchart LR
+  subgraph Build[&quot;Actor image build&quot;]
+    CORE[cognitive-os-core] --&gt; BASE
+    DOM[cognitive-os-domains] --&gt; BASE
+    ACT[cognitive-os-actor] --&gt; BASE
+    COM[&quot;commerce, manufacturing, media&quot;] --&gt; BASE
+    BASE[&quot;cognitiveos-actor:local&quot;] --&gt; LAI[&quot;cognitiveos-learning-actor:local&quot;]
+    LMSR[cognitive-os-lms] --&gt; LAI
+  end
+  subgraph Run[&quot;Compose projects&quot;]
+    P1[&quot;cognitive-os-control-plane\ndocker-compose.yml&quot;]
+    P2[&quot;lms (cognitive-os-learning)\ndocker-compose.yml&quot;]
+    P3[&quot;cognitive-os-lms\ndocker-compose.learning-actor.yml\n+ ~/.cognitive-os-live/actor/override.yml&quot;]
+  end
+  LAI --&gt; P3
+  ENV[&quot;actor/learning-actor.env (600)&quot;] --&gt; P3
+  POL[&quot;actor/remix-policies/live_v8.yaml&quot;] --&gt; P3
+</pre></div></section><h2 class="group">Sequences</h2><section id="d9"><div class="head"><span class="n">09</span><h2>From an LMS attempt to remediation</h2><span class="kind">sequence</span></div><p>The sweep notices a new graded attempt and runs everything up to staff review in the background.</p><div class="frame"><pre class="mermaid">sequenceDiagram
+  participant F as Frappe LMS
+  participant SW as Sweep (actor)
+  participant MC as Mastery cycle
+  participant ST as SQLite store
+  participant OL as Ollama qwen2.5:14b
+  loop every sweep, per course in scope
+    SW-&gt;&gt;F: GET LMS Quiz Submission since the stored watermark
+  end
+  F--&gt;&gt;SW: new submission (learner, quiz, score)
+  SW-&gt;&gt;MC: start or resume the cycle (wait=false)
+  MC-&gt;&gt;ST: store cycle + job &quot;running&quot; (before any model call)
+  MC-&gt;&gt;F: per-question results, quiz questions, lessons
+  MC-&gt;&gt;MC: diagnose: failed question -&gt; objective -&gt; source lesson
+  MC-&gt;&gt;MC: derive misconceptions (sandboxed mistake mutations)
+  MC-&gt;&gt;OL: generate remediation lesson
+  MC-&gt;&gt;MC: quality gate, repair loop, claim judge
+  MC-&gt;&gt;OL: generate practice quiz (check_builder if it fails)
+  MC-&gt;&gt;ST: artifacts needs_review, status awaiting_review
+</pre></div></section><section id="d10"><div class="head"><span class="n">10</span><h2>Staff review and approval</h2><span class="kind">sequence</span></div><p>An approval is bound to the exact content the reviewer saw; a later change voids it.</p><div class="frame"><pre class="mermaid">sequenceDiagram
+  actor S as Staff (API client)
+  participant CP as Kong + agentos
+  participant T as Actor review API
+  participant RS as RemixStore
+  S-&gt;&gt;CP: GET .../review/artifacts (perm-view-actors)
+  CP-&gt;&gt;T: forward (requested_by = staff email)
+  T--&gt;&gt;S: pending artifacts, content hash, validation results
+  S-&gt;&gt;CP: POST .../review/artifacts/{id}/approve (expected hash)
+  CP-&gt;&gt;T: forward
+  T-&gt;&gt;RS: approve under the store lock
+  alt content changed since it was reviewed
+    RS--&gt;&gt;S: ApprovalConflict, nothing approved
+  else hash still matches
+    RS-&gt;&gt;RS: status ready, approval records hash, content version, policy, failed checks
+    RS--&gt;&gt;S: approved
+  end
+  S-&gt;&gt;CP: POST .../mastery/{cycle}/resume
+  CP-&gt;&gt;T: forward
+  T-&gt;&gt;RS: publishable(): recompute the hash before delivery or LMS publish
+</pre></div></section><section id="d11"><div class="head"><span class="n">11</span><h2>Publishing a mastery check</h2><span class="kind">sequence</span></div><p>The rendered questions are checked again, and the LMS write is read back before the quiz is assigned.</p><div class="frame"><pre class="mermaid">sequenceDiagram
+  participant MC as Mastery cycle
+  participant F as Frappe LMS
+  MC-&gt;&gt;MC: publishable(): status ready and hash matches the approval
+  MC-&gt;&gt;MC: publication_problems(): render each question, re-run its code, recheck the key
+  alt any problem
+    MC-&gt;&gt;MC: escalate, nothing written
+  else clean
+    MC-&gt;&gt;F: find quiz by its unique title (re-entry after a crash)
+    loop each question not created yet
+      MC-&gt;&gt;F: create question
+      MC-&gt;&gt;MC: persist its LMS id (never duplicated)
+    end
+    MC-&gt;&gt;F: create quiz (title, pass mark, question ids)
+    MC-&gt;&gt;F: read the quiz and every question back
+    MC-&gt;&gt;MC: compare text, options, keys, pass mark
+    MC-&gt;&gt;F: assign the quiz to the learner (due date)
+    MC-&gt;&gt;F: read the assignment back
+    MC-&gt;&gt;MC: status awaiting_reassessment
+  end
+</pre></div></section><section id="d12"><div class="head"><span class="n">12</span><h2>Evaluating a mastery-check attempt</h2><span class="kind">sequence</span></div><p>Score, objective coverage and the mastery evaluator decide: complete, fresh check, escalate, or iterate.</p><div class="frame"><pre class="mermaid">sequenceDiagram
+  actor L as Learner
+  participant F as Frappe LMS
+  participant SW as Sweep
+  participant MC as Mastery cycle
+  L-&gt;&gt;F: take the mastery check
+  SW-&gt;&gt;F: new submission found
+  SW-&gt;&gt;MC: resume the cycle
+  MC-&gt;&gt;F: per-question correctness (answers never stored)
+  MC-&gt;&gt;MC: map questions -&gt; objectives (covered, failed)
+  MC-&gt;&gt;MC: skill status from the mastery evaluator
+  MC-&gt;&gt;MC: completion_decision(score &gt;= target, all required covered, evaluator)
+  alt complete
+    MC-&gt;&gt;MC: completed, completion record (evidence: learner or scripted_test)
+  else invalid, a question flagged by staff
+    MC-&gt;&gt;MC: open a fresh check, attempt is not evidence
+  else invalid evidence
+    MC-&gt;&gt;MC: escalate assessment_evidence_invalid
+  else not mastered
+    MC-&gt;&gt;MC: next iteration (remediating), or escalate at the limit
+  end
+</pre></div></section><section id="d13"><div class="head"><span class="n">13</span><h2>Recovery after a restart</h2><span class="kind">sequence</span></div><p>The sweep resumes stranded work and hands off to staff after 3 tries in a row (waiting-cycle case not deployed yet).</p><div class="frame"><pre class="mermaid">sequenceDiagram
+  participant H as Host / Docker
+  participant SW as Sweep
+  participant ST as SQLite store
+  participant F as Frappe LMS
+  participant MC as Mastery cycle
+  participant RS as RemixStore
+  H-&gt;&gt;SW: actor process restarts
+  SW-&gt;&gt;ST: list cycles
+  SW-&gt;&gt;SW: stopped = in flight, or waiting with job &quot;running&quot; (fix), and no resume holds its lock
+  SW-&gt;&gt;F: list the course&#x27;s submitters (match hashed learner ref)
+  alt recoveries &gt;= 3
+    SW-&gt;&gt;MC: escalate (generation_failed or lms_unavailable)
+  else
+    SW-&gt;&gt;ST: job -&gt; interrupted, recoveries + 1
+    SW-&gt;&gt;MC: resume (wait=false)
+    MC-&gt;&gt;RS: claim generation, a dead process&#x27;s claim is taken over at once
+    MC-&gt;&gt;ST: job succeeded, recoveries reset
+  end
+</pre></div></section><section id="d14"><div class="head"><span class="n">14</span><h2>LMS key rotation</h2><span class="kind">sequence</span></div><p>A daily job rotates the actor&#x27;s key near expiry and recreates the actor at once, since the LMS keeps one key per user.</p><div class="frame"><pre class="mermaid">sequenceDiagram
+  participant LD as launchd (daily 03:30)
+  participant R as rotate_actor_key.sh
+  participant F as Frappe LMS
+  participant A as Learning actor container
+  LD-&gt;&gt;R: run --dev-site
+  R-&gt;&gt;R: due? within 14 days of actor/key-expiry.json
+  alt not due
+    R-&gt;&gt;R: log and exit
+  else due
+    R-&gt;&gt;R: config preflight (recreate_actor.sh --preflight)
+    R-&gt;&gt;F: admin login, POST /api/v1/users/learning-actor@example.com/api-keys
+    F--&gt;&gt;R: new key (the old key is revoked at once)
+    R-&gt;&gt;F: verify the new key
+    R-&gt;&gt;R: write the key only into learning-actor.env (600)
+    R-&gt;&gt;A: recreate the actor immediately
+    R-&gt;&gt;A: health check + in-container LMS auth
+    R-&gt;&gt;R: append to rotation.log (no secrets)
+  end
+</pre></div></section><footer>Source: <code>cognitive-os-docs/architecture/ARCHITECTURE.md</code>. Ports are host ports on the local Docker Desktop stack.</footer></div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true, theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default" });</script>
+</body>
+</html>
